@@ -1,0 +1,31 @@
+claudeson4-qr/
+├── index.php              # Página principal
+├── scanner.php            # Escáner QR móvil
+├── buscar.php             # Buscador de visitantes
+├── inscripcion.php        # Formulario público
+├── install.php            # Script de instalación
+├── database.sql           # Estructura de BD
+├── README.md              # Documentación completa
+├── .htaccess              # Configuración seguridad
+├── admin/                 # Panel administración
+│   ├── index.php         # Dashboard
+│   ├── eventos.php       # CRUD eventos
+│   ├── visitantes.php    # CRUD visitantes
+│   ├── login.php         # Login admin
+│   └── logout.php        # Cerrar sesión
+├── api/                   # APIs REST
+│   ├── verificar_qr.php  # Verificación QR
+│   ├── confirmar_acceso.php # Confirmar acceso
+│   ├── estadisticas.php  # Estadísticas
+│   └── visitante_detalle.php # Detalles visitante
+├── classes/               # Clases principales
+│   ├── Database.php      # Conexión BD
+│   ├── Auth.php          # Autenticación
+│   └── Mailer.php        # Sistema correos
+├── config/                # Configuraciones
+│   ├── config.php        # Config general
+│   └── database.php      # Config BD
+└── models/                # Modelos datos
+    ├── Evento.php        # Modelo eventos
+    ├── Visitante.php     # Modelo visitantes
+    └── Inscripcion.php   # Modelo inscripciones
