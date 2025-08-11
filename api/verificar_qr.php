@@ -56,14 +56,14 @@ try {
 function verificarQRJSON(array $datosQR): array {
     try {
         // Validar campos requeridos
-        $camposRequeridos = ['codigo_qr', 'timestamp', 'hash', 'inscripcion_id'];
+    $camposRequeridos = ['codigo_qr', 'timestamp', 'hash', 'inscripcion_id'];
         foreach ($camposRequeridos as $campo) {
             if (!isset($datosQR[$campo])) {
                 return ['valido' => false, 'mensaje' => 'Formato de QR inválido: falta campo ' . $campo];
             }
         }
         
-        // Verificar que el timestamp no sea muy antiguo (máximo 30 segundos de tolerancia)
+    // Verificar que el timestamp no sea muy antiguo (máximo 30 segundos de tolerancia)
         $timestampActual = time();
         $timestampQR = $datosQR['timestamp'];
         $diferencia = abs($timestampActual - $timestampQR);
@@ -72,8 +72,8 @@ function verificarQRJSON(array $datosQR): array {
             return ['valido' => false, 'mensaje' => 'Código QR expirado o con timestamp inválido'];
         }
         
-        // Verificar hash de seguridad
-        $hashEsperado = hash('sha256', $datosQR['codigo_qr'] . $timestampQR . 'eventaccess_salt');
+    // Verificar hash de seguridad
+    $hashEsperado = hash('sha256', $datosQR['codigo_qr'] . $timestampQR . 'eventaccess_salt');
         if ($datosQR['hash'] !== $hashEsperado) {
             return ['valido' => false, 'mensaje' => 'Código QR falsificado o corrupto'];
         }
@@ -93,6 +93,14 @@ function verificarQRJSON(array $datosQR): array {
         $resultadoLegacy['diferencia_tiempo'] = $diferencia;
         $resultadoLegacy['hash_valido'] = true;
         
+        // Adjuntar mesa/asiento/lugar/zona si existen en la inscripción
+        if (isset($resultadoLegacy['visitante'])) {
+            $resultadoLegacy['visitante']['mesa'] = $resultadoLegacy['visitante']['mesa'] ?? null;
+            $resultadoLegacy['visitante']['asiento'] = $resultadoLegacy['visitante']['asiento'] ?? null;
+            $resultadoLegacy['visitante']['lugar'] = $resultadoLegacy['visitante']['lugar'] ?? null;
+            $resultadoLegacy['visitante']['zona'] = $resultadoLegacy['visitante']['zona'] ?? null;
+        }
+
         return $resultadoLegacy;
         
     } catch (Exception $e) {

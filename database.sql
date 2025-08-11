@@ -11,6 +11,7 @@ CREATE TABLE eventos (
     fecha_fin DATE NOT NULL,
     descripcion TEXT,
     link_codigo VARCHAR(255) UNIQUE NOT NULL,
+    hash_acceso VARCHAR(64) UNIQUE DEFAULT NULL,
     activo BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
@@ -41,6 +42,10 @@ CREATE TABLE inscripciones (
     visitante_id INT NOT NULL,
     codigo_qr VARCHAR(255) UNIQUE NOT NULL,
     estado ENUM('pendiente', 'confirmado', 'cancelado') DEFAULT 'pendiente',
+    mesa VARCHAR(50) NULL,
+    asiento VARCHAR(50) NULL,
+    lugar VARCHAR(100) NULL,
+    zona VARCHAR(100) NULL,
     fecha_inscripcion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     confirmado_email BOOLEAN DEFAULT FALSE,
     recordatorio_enviado BOOLEAN DEFAULT FALSE,

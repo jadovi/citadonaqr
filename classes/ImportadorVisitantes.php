@@ -58,6 +58,15 @@ class ImportadorVisitantes {
                     continue;
                 }
                 
+                // Separar datos de ubicación (mesa/asiento/lugar/zona) si vienen mapeados
+                $datosUbicacion = [];
+                foreach (['mesa','asiento','lugar','zona'] as $k) {
+                    if (isset($datosVisitante[$k])) {
+                        $datosUbicacion[$k] = $datosVisitante[$k];
+                        unset($datosVisitante[$k]);
+                    }
+                }
+
                 // Procesar visitante
                 $resultado = $this->procesarVisitante($datosVisitante, $actualizarExistentes);
                 
@@ -69,7 +78,7 @@ class ImportadorVisitantes {
                 
                 // Inscribir a evento si se especifica
                 if ($eventoId && $resultado['visitante_id']) {
-                    $this->inscribirAEvento($resultado['visitante_id'], $eventoId, $filaActual);
+                    $this->inscribirAEvento($resultado['visitante_id'], $eventoId, $filaActual, $datosUbicacion);
                 }
                 
             } catch (Exception $e) {
@@ -170,13 +179,26 @@ class ImportadorVisitantes {
     /**
      * Inscribir visitante a evento
      */
-    private function inscribirAEvento(int $visitanteId, int $eventoId, int $fila): void {
+    private function inscribirAEvento(int $visitanteId, int $eventoId, int $fila, array $ubicacion = []): void {
         try {
             $inscripcion = new Inscripcion();
             $inscripcionId = $inscripcion->crear($eventoId, $visitanteId);
             
             // Confirmar automáticamente
             $inscripcion->confirmar($inscripcionId);
+            // Aplicar ubicación si se proporcionó
+            if (!empty($ubicacion)) {
+                $set = [];
+                $params = [];
+                foreach (['mesa','asiento','lugar','zona'] as $f) {
+                    if (isset($ubicacion[$f]) && $ubicacion[$f] !== '') {
+                        $set[$f] = $ubicacion[$f];
+                    }
+                }
+                if (!empty($set)) {
+                    $this->db->update('inscripciones', $set, 'id = ?', [$inscripcionId]);
+                }
+            }
             
         } catch (Exception $e) {
             // Si falla la inscripción, solo agregar a errores pero no detener el proceso
@@ -243,13 +265,17 @@ class ImportadorVisitantes {
             'telefono',
             'empresa',
             'cargo',
-            'rut'
+            'rut',
+            'mesa',
+            'asiento',
+            'lugar',
+            'zona'
         ];
         
         $ejemplos = [
-            ['Juan', 'Pérez', 'juan.perez@empresa.com', '+56912345678', 'Empresa ABC', 'Gerente', '12345678-9'],
-            ['María', 'González', 'maria.gonzalez@corp.cl', '56987654321', 'Corporación XYZ', 'Directora', '98765432-1'],
-            ['Carlos', 'López', 'carlos.lopez@startup.cl', '912345678', 'Startup Tech', 'Desarrollador', '11111111-1']
+            ['Juan', 'Pérez', 'juan.perez@empresa.com', '+56912345678', 'Empresa ABC', 'Gerente', '12345678-9', '12', 'A3', 'Salón Principal', 'VIP'],
+            ['María', 'González', 'maria.gonzalez@corp.cl', '56987654321', 'Corporación XYZ', 'Directora', '98765432-1', '8', 'B1', 'Patio Central', 'General'],
+            ['Carlos', 'López', 'carlos.lopez@startup.cl', '912345678', 'Startup Tech', 'Desarrollador', '11111111-1', '', '', 'Auditorio 2', 'Balcón']
         ];
         
         $csvContent = implode(',', $headers) . "\n";

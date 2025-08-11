@@ -348,6 +348,9 @@ $pageTitle = $eventoData ? $eventoData['nombre'] . ' - Visitantes QR' : 'Visitan
                         <i class="bi bi-people me-1"></i>
                         <?= count($visitantesEvento) ?> visitantes confirmados
                     </span>
+                    <a class="btn btn-sm btn-outline-primary ms-2" href="<?= BASE_URL ?>/mi_qr.php?access=<?= htmlspecialchars($hashAcceso) ?>">
+                        <i class="bi bi-person-qr"></i> Buscar mi QR por RUT
+                    </a>
                 </div>
             </div>
 
@@ -390,7 +393,7 @@ $pageTitle = $eventoData ? $eventoData['nombre'] . ' - Visitantes QR' : 'Visitan
                                     </small>
                                 </div>
                                 <div class="col-md-4 text-center">
-                                    <button class="btn btn-primary btn-qr" onclick="generarQRVisitante('<?= htmlspecialchars($visitante['codigo_qr']) ?>', '<?= htmlspecialchars($visitante['nombre'] . ' ' . $visitante['apellido']) ?>')">
+                                    <button class="btn btn-primary btn-qr" onclick="generarQRVisitante('<?= htmlspecialchars($visitante['codigo_qr']) ?>', '<?= htmlspecialchars($visitante['nombre'] . ' ' . $visitante['apellido']) ?>', '<?= htmlspecialchars($visitante['id']) ?>')">
                                         <i class="bi bi-qr-code me-1"></i>
                                         Ver QR
                                     </button>
@@ -446,7 +449,7 @@ $pageTitle = $eventoData ? $eventoData['nombre'] . ' - Visitantes QR' : 'Visitan
             qrModal = new bootstrap.Modal(document.getElementById('qrModal'));
         });
 
-        function generarQRVisitante(codigoQR, nombreVisitante) {
+    async function generarQRVisitante(codigoQR, nombreVisitante, inscripcionId) {
             // Mostrar nombre del visitante
             document.getElementById('qr-visitante-nombre').innerHTML = `
                 <h5><strong>${nombreVisitante}</strong></h5>
@@ -466,30 +469,38 @@ $pageTitle = $eventoData ? $eventoData['nombre'] . ' - Visitantes QR' : 'Visitan
             
             // Generar QR inicial
             currentQRCode = codigoQR;
-            generateQRWithData(codigoQR);
+            await generateQRWithData(codigoQR, inscripcionId);
             
             // Iniciar ciclo de renovación
-            startQRRefreshCycle(codigoQR);
+            startQRRefreshCycle(codigoQR, inscripcionId);
         }
 
-        function generateQRWithData(codigoQR) {
-            // Generar timestamp que cambia cada 7 segundos
-            const timestamp = Math.floor(Date.now() / (7 * 1000)) * 7;
-            
+        async function generateQRWithData(codigoQR, inscripcionId) {
+            // Timestamp en segundos
+            const timestamp = Math.floor(Date.now() / 1000);
+
+            // Calcular hash SHA-256 esperado por la API: sha256(codigoQR + timestamp + 'eventaccess_salt')
+            const hash = await sha256Hex(codigoQR + String(timestamp) + 'eventaccess_salt');
+
             // Crear datos del QR JSON
             const qrData = {
                 codigo_qr: codigoQR,
+                inscripcion_id: inscripcionId,
                 timestamp: timestamp,
                 evento_hash: '<?= $error ? '' : htmlspecialchars($hashAcceso) ?>',
-                hash: generateSecurityHash(codigoQR, timestamp)
+                hash: hash
             };
-            
+
             generateQR(JSON.stringify(qrData));
         }
 
-        function generateSecurityHash(codigoQR, timestamp) {
-            // Simulación de hash de seguridad (en producción se haría en servidor)
-            return btoa(codigoQR + timestamp + 'eventaccess_salt').substring(0, 32);
+        // Utilidad: SHA-256 a hex usando Web Crypto
+        async function sha256Hex(message) {
+            const encoder = new TextEncoder();
+            const data = encoder.encode(message);
+            const digest = await crypto.subtle.digest('SHA-256', data);
+            const bytes = Array.from(new Uint8Array(digest));
+            return bytes.map(b => b.toString(16).padStart(2, '0')).join('');
         }
 
         function generateQR(data) {
@@ -513,7 +524,7 @@ $pageTitle = $eventoData ? $eventoData['nombre'] . ' - Visitantes QR' : 'Visitan
             });
         }
 
-        function startQRRefreshCycle(codigoQR) {
+    function startQRRefreshCycle(codigoQR, inscripcionId) {
             // Limpiar timer anterior si existe
             if (refreshTimer) {
                 clearInterval(refreshTimer);
@@ -522,7 +533,7 @@ $pageTitle = $eventoData ? $eventoData['nombre'] . ' - Visitantes QR' : 'Visitan
             // Renovar cada 7 segundos
             refreshTimer = setInterval(() => {
                 if (currentQRCode === codigoQR) {
-                    generateQRWithData(codigoQR);
+            generateQRWithData(codigoQR, inscripcionId);
                 }
             }, 7000);
         }

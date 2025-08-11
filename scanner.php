@@ -172,6 +172,10 @@ $pageTitle = 'Escáner QR - Acreditación';
                             <button id="stop-scanner" class="btn btn-danger btn-lg" style="display: none;">
                                 <i class="bi bi-camera-video-off"></i> Detener Cámara
                             </button>
+                            <div class="form-check form-switch d-inline-block ms-3 align-middle">
+                                <input class="form-check-input" type="checkbox" id="auto-confirm">
+                                <label class="form-check-label" for="auto-confirm">Confirmar automáticamente</label>
+                            </div>
                         </div>
                         
                         <div id="scanner-status" class="alert alert-info mt-3" style="display: none;">
@@ -202,6 +206,14 @@ $pageTitle = 'Escáner QR - Acreditación';
                                     <p><strong>Evento:</strong> <span id="visitor-evento"></span></p>
                                     <p><strong>Estado:</strong> <span id="visitor-estado"></span></p>
                                     <p><strong>Código QR:</strong> <span id="visitor-codigo"></span></p>
+                                    <div id="visitor-mesa-asiento" class="mt-2" style="display:none">
+                                        <span class="badge bg-primary me-2" id="badge-mesa" style="display:none"><i class="bi bi-grid-3x3-gap"></i> <span></span></span>
+                                        <span class="badge bg-secondary" id="badge-asiento" style="display:none"><i class="bi bi-chair"></i> <span></span></span>
+                                    </div>
+                                    <div id="visitor-lugar-zona" class="mt-2" style="display:none">
+                                        <span class="badge bg-info text-dark me-2" id="badge-lugar" style="display:none"><i class="bi bi-geo-alt"></i> <span></span></span>
+                                        <span class="badge bg-dark" id="badge-zona" style="display:none"><i class="bi bi-diagram-3"></i> <span></span></span>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -255,6 +267,13 @@ $pageTitle = 'Escáner QR - Acreditación';
                     </div>
                     <h4 class="mt-3">Visitante Acreditado</h4>
                     <p id="success-message" class="text-muted"></p>
+                    <div id="success-extra" class="mt-2">
+                        <div><strong>Empresa:</strong> <span id="succ-empresa">-</span></div>
+                        <div id="succ-mesa-asiento" style="display:none">
+                            <span class="badge bg-primary me-2" id="succ-mesa" style="display:none"></span>
+                            <span class="badge bg-secondary" id="succ-asiento" style="display:none"></span>
+                        </div>
+                    </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Continuar</button>
@@ -292,6 +311,8 @@ $pageTitle = 'Escáner QR - Acreditación';
                 this.context = this.canvas.getContext('2d');
                 this.scanning = false;
                 this.stream = null;
+                this.autoConfirmEl = document.getElementById('auto-confirm');
+                this.lastVisitorData = null;
                 
                 this.initEventListeners();
             }
@@ -390,6 +411,10 @@ $pageTitle = 'Escáner QR - Acreditación';
                     if (result.success) {
                         if (result.data.valido) {
                             this.showVisitorInfo(result.data);
+                            // Auto confirmar si está activado
+                            if (this.autoConfirmEl && this.autoConfirmEl.checked) {
+                                await this.confirmAccess();
+                            }
                         } else {
                             this.showError(result.data.mensaje);
                         }
@@ -422,6 +447,24 @@ $pageTitle = 'Escáner QR - Acreditación';
                 document.getElementById('visitor-estado').textContent = visitante.estado;
                 document.getElementById('visitor-codigo').textContent = visitante.codigo_qr;
 
+                // Mesa/Asiento si existen
+                const cont = document.getElementById('visitor-mesa-asiento');
+                const bMesa = document.getElementById('badge-mesa');
+                const bAsiento = document.getElementById('badge-asiento');
+                let any = false;
+                if (visitante.mesa) { bMesa.style.display='inline-block'; bMesa.querySelector('span').textContent = 'Mesa: ' + visitante.mesa; any=true; } else { bMesa.style.display='none'; }
+                if (visitante.asiento) { bAsiento.style.display='inline-block'; bAsiento.querySelector('span').textContent = 'Asiento: ' + visitante.asiento; any=true; } else { bAsiento.style.display='none'; }
+                cont.style.display = any ? 'block' : 'none';
+
+                // Lugar/Zona si existen
+                const contLZ = document.getElementById('visitor-lugar-zona');
+                const bLugar = document.getElementById('badge-lugar');
+                const bZona = document.getElementById('badge-zona');
+                let anyLZ = false;
+                if (visitante.lugar) { bLugar.style.display='inline-block'; bLugar.querySelector('span').textContent = 'Lugar: ' + visitante.lugar; anyLZ=true; } else { bLugar.style.display='none'; }
+                if (visitante.zona) { bZona.style.display='inline-block'; bZona.querySelector('span').textContent = 'Zona: ' + visitante.zona; anyLZ=true; } else { bZona.style.display='none'; }
+                contLZ.style.display = anyLZ ? 'block' : 'none';
+
                 // Mostrar información del visitante
                 document.getElementById('result-section').style.display = 'block';
                 
@@ -438,6 +481,7 @@ $pageTitle = 'Escáner QR - Acreditación';
 
                 // Guardar código para confirmación
                 this.currentCode = visitante.codigo_qr;
+                this.lastVisitorData = visitante;
                 this.hideStatus();
             }
 
@@ -454,7 +498,7 @@ $pageTitle = 'Escáner QR - Acreditación';
                     const result = await response.json();
                     
                     if (result.success) {
-                        this.showSuccessModal(result.message);
+                        this.showSuccessModal(result.message, this.lastVisitorData);
                         this.resetScanner();
                     } else {
                         this.showError(result.message || 'Error al confirmar el acceso');
@@ -498,8 +542,19 @@ $pageTitle = 'Escáner QR - Acreditación';
                 this.resetScanner();
             }
 
-            showSuccessModal(message) {
+            showSuccessModal(message, visitante) {
                 document.getElementById('success-message').textContent = message;
+                // Extra details
+                const empresa = visitante?.empresa || 'N/A';
+                document.getElementById('succ-empresa').textContent = empresa;
+                const cont = document.getElementById('succ-mesa-asiento');
+                const m = document.getElementById('succ-mesa');
+                const a = document.getElementById('succ-asiento');
+                let any=false;
+                if (visitante?.mesa) { m.style.display='inline-block'; m.textContent = 'Mesa: '+visitante.mesa; any=true; } else { m.style.display='none'; }
+                if (visitante?.asiento) { a.style.display='inline-block'; a.textContent = 'Asiento: '+visitante.asiento; any=true; } else { a.style.display='none'; }
+                cont.style.display = any ? 'block' : 'none';
+
                 new bootstrap.Modal(document.getElementById('successModal')).show();
             }
         }

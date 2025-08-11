@@ -43,7 +43,7 @@ try {
     
     if ($resultado) {
         // Obtener información del visitante para el mensaje
-        $info = $inscripcion->obtenerPorCodigoQR($codigoQR);
+        $info = $inscripcion->obtenerPorCodigoQR($codigoQRReal);
         
         echo json_encode([
             'success' => true,

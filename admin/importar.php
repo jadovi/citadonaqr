@@ -31,6 +31,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 echo $template;
                 exit;
                 break;
+
+            case 'descargar_ejemplo_excel':
+                // Generar archivo Excel simple (HTML) con 3 filas de prueba
+                $filename = 'ejemplo_visitantes.xls';
+                header('Content-Type: application/vnd.ms-excel; charset=UTF-8');
+                header('Content-Disposition: attachment; filename=' . $filename);
+                echo "<html><head><meta charset='UTF-8'></head><body>";
+                echo "<table border='1'>";
+                echo "<tr>"
+                    ."<th>nombre</th>"
+                    ."<th>apellido</th>"
+                    ."<th>email</th>"
+                    ."<th>telefono</th>"
+                    ."<th>empresa</th>"
+                    ."<th>cargo</th>"
+                    ."<th>rut</th>"
+                    ."<th>mesa</th>"
+                    ."<th>asiento</th>"
+                    ."<th>lugar</th>"
+                    ."<th>zona</th>"
+                    ."</tr>";
+                echo "<tr><td>Juan</td><td>Pérez</td><td>juan.perez@empresa.com</td><td>+56912345678</td><td>Empresa ABC</td><td>Gerente</td><td>12345678-9</td><td>12</td><td>A3</td><td>Salón Principal</td><td>VIP</td></tr>";
+                echo "<tr><td>María</td><td>González</td><td>maria.gonzalez@corp.cl</td><td>56987654321</td><td>Corporación XYZ</td><td>Directora</td><td>98765432-1</td><td>8</td><td>B1</td><td>Patio Central</td><td>General</td></tr>";
+                echo "<tr><td>Carlos</td><td>López</td><td>carlos.lopez@startup.cl</td><td>912345678</td><td>Startup Tech</td><td>Desarrollador</td><td>11111111-1</td><td></td><td></td><td>Auditorio 2</td><td>Balcón</td></tr>";
+                echo "</table></body></html>";
+                exit;
+                break;
                 
             case 'procesar_archivo':
                 if (!isset($_FILES['archivo']) || $_FILES['archivo']['error'] !== UPLOAD_ERR_OK) {
@@ -53,7 +80,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'telefono' => isset($_POST['col_telefono']) && $_POST['col_telefono'] !== '' ? (int)$_POST['col_telefono'] : null,
                     'empresa' => isset($_POST['col_empresa']) && $_POST['col_empresa'] !== '' ? (int)$_POST['col_empresa'] : null,
                     'cargo' => isset($_POST['col_cargo']) && $_POST['col_cargo'] !== '' ? (int)$_POST['col_cargo'] : null,
-                    'rut' => isset($_POST['col_rut']) && $_POST['col_rut'] !== '' ? (int)$_POST['col_rut'] : null
+                    'rut' => isset($_POST['col_rut']) && $_POST['col_rut'] !== '' ? (int)$_POST['col_rut'] : null,
+                    'mesa' => isset($_POST['col_mesa']) && $_POST['col_mesa'] !== '' ? (int)$_POST['col_mesa'] : null,
+                    'asiento' => isset($_POST['col_asiento']) && $_POST['col_asiento'] !== '' ? (int)$_POST['col_asiento'] : null,
+                    'lugar' => isset($_POST['col_lugar']) && $_POST['col_lugar'] !== '' ? (int)$_POST['col_lugar'] : null,
+                    'zona' => isset($_POST['col_zona']) && $_POST['col_zona'] !== '' ? (int)$_POST['col_zona'] : null
                 ];
                 
                 // Filtrar valores null del mapeo
@@ -276,6 +307,12 @@ $pageTitle = 'Importador de Visitantes';
                                     <input type="hidden" name="accion" value="descargar_template">
                                     <button type="submit" class="btn btn-outline-primary">
                                         <i class="bi bi-download"></i> Descargar Template
+                                    </button>
+                                </form>
+                                <form method="POST" action="" style="display: inline;">
+                                    <input type="hidden" name="accion" value="descargar_ejemplo_excel">
+                                    <button type="submit" class="btn btn-primary ms-2">
+                                        <i class="bi bi-file-earmark-excel"></i> Descargar ejemplo Excel
                                     </button>
                                 </form>
                             </div>
@@ -558,6 +595,70 @@ $pageTitle = 'Importador de Visitantes';
                                                 <option value="4">Columna 5</option>
                                                 <option value="5">Columna 6</option>
                                                 <option value="6" selected>Columna 7</option>
+                                                <option value="7">Columna 8</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="mapping-row">
+                                            <label class="form-label">Mesa</label>
+                                            <select class="form-select form-select-sm" name="col_mesa">
+                                                <option value="">-- No mapear --</option>
+                                                <option value="0">Columna 1</option>
+                                                <option value="1">Columna 2</option>
+                                                <option value="2">Columna 3</option>
+                                                <option value="3">Columna 4</option>
+                                                <option value="4">Columna 5</option>
+                                                <option value="5">Columna 6</option>
+                                                <option value="6">Columna 7</option>
+                                                <option value="7">Columna 8</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="mapping-row">
+                                            <label class="form-label">Asiento/Silla</label>
+                                            <select class="form-select form-select-sm" name="col_asiento">
+                                                <option value="">-- No mapear --</option>
+                                                <option value="0">Columna 1</option>
+                                                <option value="1">Columna 2</option>
+                                                <option value="2">Columna 3</option>
+                                                <option value="3">Columna 4</option>
+                                                <option value="4">Columna 5</option>
+                                                <option value="5">Columna 6</option>
+                                                <option value="6">Columna 7</option>
+                                                <option value="7">Columna 8</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="mapping-row">
+                                            <label class="form-label">Lugar</label>
+                                            <select class="form-select form-select-sm" name="col_lugar">
+                                                <option value="">-- No mapear --</option>
+                                                <option value="0">Columna 1</option>
+                                                <option value="1">Columna 2</option>
+                                                <option value="2">Columna 3</option>
+                                                <option value="3">Columna 4</option>
+                                                <option value="4">Columna 5</option>
+                                                <option value="5">Columna 6</option>
+                                                <option value="6">Columna 7</option>
+                                                <option value="7">Columna 8</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="mapping-row">
+                                            <label class="form-label">Zona</label>
+                                            <select class="form-select form-select-sm" name="col_zona">
+                                                <option value="">-- No mapear --</option>
+                                                <option value="0">Columna 1</option>
+                                                <option value="1">Columna 2</option>
+                                                <option value="2">Columna 3</option>
+                                                <option value="3">Columna 4</option>
+                                                <option value="4">Columna 5</option>
+                                                <option value="5">Columna 6</option>
+                                                <option value="6">Columna 7</option>
                                                 <option value="7">Columna 8</option>
                                             </select>
                                         </div>
