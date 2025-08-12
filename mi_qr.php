@@ -24,6 +24,11 @@ if (!isset($_GET['access']) || empty($_GET['access'])) {
 // Si se envió RUT, buscar inscripción confirmada para el evento
 if (!$error && ($_SERVER['REQUEST_METHOD'] === 'POST') && isset($_POST['rut'])) {
     $rut = trim($_POST['rut']);
+    // Normalizar RUT: quitar puntos, mayúsculas, dejar guión antes del dígito verificador
+    $rut = strtoupper(str_replace(['.', ' '], '', $rut));
+    if (strpos($rut, '-') === false && strlen($rut) > 1) {
+        $rut = substr($rut, 0, -1) . '-' . substr($rut, -1);
+    }
     try {
         $db = Database::getInstance();
         $sql = "
@@ -32,12 +37,12 @@ if (!$error && ($_SERVER['REQUEST_METHOD'] === 'POST') && isset($_POST['rut'])) 
             FROM inscripciones i
             JOIN visitantes v ON v.id = i.visitante_id
             JOIN eventos e ON e.id = i.evento_id
-            WHERE e.hash_acceso = ? AND v.rut = ? AND i.estado = 'confirmado'
+            WHERE e.hash_acceso = ? AND v.rut = ?
             LIMIT 1
         ";
         $inscripcion = $db->fetch($sql, [$hashAcceso, $rut]);
         if (!$inscripcion) {
-            $error = 'No encontramos una inscripción confirmada para este RUT en este evento.';
+            $error = 'No encontramos una inscripción para este RUT en este evento.';
         }
     } catch (Exception $e) {
         $error = $e->getMessage();
@@ -54,39 +59,14 @@ $pageTitle = $eventoData ? ($eventoData['nombre'] . ' - Mi QR') : 'Mi QR';
     <title><?= htmlspecialchars($pageTitle) ?></title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+    <script src="qrcodejs.min.js"></script>
     <style>
         body{background:#f1f3f5}
         .card-elev{box-shadow:0 10px 30px rgba(0,0,0,.08)}
         .qr-box{background:#fff;border:3px solid #e9ecef;border-radius:16px;padding:16px}
         #qrcode{min-height:250px;display:flex;align-items:center;justify-content:center}
     </style>
-    <script>
-        // Utilidad SHA-256 a hex
-        async function sha256Hex(message){
-            const enc=new TextEncoder();
-            const data=enc.encode(message);
-            const buf=await crypto.subtle.digest('SHA-256', data);
-            return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
-        }
-
-        async function renderQR(codigoQR, inscripcionId, eventoHash){
-            const ts=Math.floor(Date.now()/1000);
-            const hash=await sha256Hex(codigoQR+String(ts)+'eventaccess_salt');
-            const payload={codigo_qr:codigoQR, inscripcion_id:inscripcionId, timestamp:ts, evento_hash:eventoHash, hash};
-            const container=document.getElementById('qrcode');
-            container.innerHTML='';
-            QRCode.toCanvas(container, JSON.stringify(payload), {width:250,height:250,margin:2,color:{dark:'#2c3e50',light:'#ffffff'},errorCorrectionLevel:'M'}, (err)=>{
-                if(err){container.innerHTML='<div class="text-danger">Error generando QR</div>'}
-            });
-        }
-
-        function startRefresh(codigoQR, inscripcionId, eventoHash){
-            let timer=window.__qrTimer;
-            if(timer){clearInterval(timer)}
-            window.__qrTimer=setInterval(()=>renderQR(codigoQR, inscripcionId, eventoHash),7000);
-        }
-    </script>
+    </style>
     </head>
 <body>
     <nav class="navbar navbar-dark bg-dark">
@@ -139,7 +119,15 @@ $pageTitle = $eventoData ? ($eventoData['nombre'] . ' - Mi QR') : 'Mi QR';
                         <div class="card-body">
                             <div class="d-flex justify-content-between align-items-center">
                                 <h5 class="mb-0"><i class="bi bi-person-badge"></i> Mi Ticket</h5>
-                                <span class="badge bg-success">Confirmado</span>
+                                <?php
+                                    $estado = $inscripcion['estado'];
+                                    $badge = 'secondary';
+                                    $txt = '';
+                                    if ($estado === 'confirmado') { $badge = 'success'; $txt = 'Confirmado'; }
+                                    elseif ($estado === 'pendiente') { $badge = 'warning'; $txt = 'Pendiente'; }
+                                    elseif ($estado === 'cancelado') { $badge = 'danger'; $txt = 'Cancelado'; }
+                                ?>
+                                <span class="badge bg-<?= $badge ?>">Estado: <?= $txt ?></span>
                             </div>
                             <hr>
                             <div class="row g-3">
@@ -192,4 +180,48 @@ $pageTitle = $eventoData ? ($eventoData['nombre'] . ' - Mi QR') : 'Mi QR';
     </div>
 
 </body>
+<script>
+    // Utilidad SHA-256 a hex
+    async function sha256Hex(message){
+        const enc=new TextEncoder();
+        const data=enc.encode(message);
+        const buf=await crypto.subtle.digest('SHA-256', data);
+        return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+    }
+
+    async function renderQR(codigoQR, inscripcionId, eventoHash){
+        const ts=Math.floor(Date.now()/1000);
+        const hash=await sha256Hex(codigoQR+String(ts)+'eventaccess_salt');
+        const payload={codigo_qr:codigoQR, inscripcion_id:inscripcionId, timestamp:ts, evento_hash:eventoHash, hash};
+        const container=document.getElementById('qrcode');
+        container.innerHTML='';
+        if (typeof QRCode !== 'undefined') {
+            try {
+                new QRCode(container, {
+                    text: JSON.stringify(payload),
+                    width: 250,
+                    height: 250,
+                    colorDark: "#2c3e50",
+                    colorLight: "#ffffff",
+                    correctLevel: QRCode.CorrectLevel.M
+                });
+            } catch (err) {
+                container.innerHTML = '<div class="text-danger">Error generando QR</div>';
+            }
+        } else {
+            container.innerHTML = '<div class="text-danger">No se pudo cargar la librería QR</div>';
+        }
+    }
+
+    function startRefresh(codigoQR, inscripcionId, eventoHash){
+        let timer=window.__qrTimer;
+        if(timer){clearInterval(timer)}
+        window.__qrTimer=setInterval(()=>renderQR(codigoQR, inscripcionId, eventoHash),7000);
+    }
+
+    // Esperar a que QRCode esté disponible antes de llamar a renderQR
+    window.addEventListener('DOMContentLoaded', function() {
+        if (typeof renderQRInit !== 'undefined') renderQRInit();
+    });
+</script>
 </html>
