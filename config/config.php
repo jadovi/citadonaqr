@@ -16,20 +16,21 @@ if (session_status() == PHP_SESSION_NONE) {
 // Configuración de zona horaria
 date_default_timezone_set('America/Santiago');
 
-// Configuraciones generales: BASE_URL dinámico
-// Detectar esquema (http/https)
+// Modo desarrollo - DESACTIVAR EN PRODUCCIÓN
+define('DEBUG_MODE', true);  // Cambiar a false en producción
+define('SKIP_DATE_VALIDATION', DEBUG_MODE);  // Saltar validación de fechas
+define('SKIP_TIME_VALIDATION', DEBUG_MODE);  // Saltar validación de tiempo QR
+define('ALLOW_ALL_STATES', DEBUG_MODE);     // Permitir todos los estados
+
+// Configuraciones generales: BASE_URL simple para localhost
 $scheme = 'http';
 if ((isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ||
     (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https')) {
     $scheme = 'https';
 }
 
-// Host actual
 $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
-
-// Base del proyecto (carpeta raíz del repo)
 $projectBase = '/' . basename(realpath(__DIR__ . '/..'));
-
 define('BASE_URL', $scheme . '://' . $host . $projectBase);
 define('UPLOAD_PATH', __DIR__ . '/../uploads/');
 define('QR_PATH', __DIR__ . '/../qr_codes/');

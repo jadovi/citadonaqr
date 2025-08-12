@@ -44,7 +44,7 @@ class Inscripcion {
         return $this->db->fetch($sql, [$codigoQR]);
     }
 
-    public function marcarIngreso(string $codigoQR, string $ipAddress = null, string $userAgent = null): bool {
+    public function marcarIngreso(string $codigoQR, string $ipAddress = null, string $userAgent = null): array {
         // Obtener inscripción
         $inscripcion = $this->obtenerPorCodigoQR($codigoQR);
         
@@ -52,26 +52,71 @@ class Inscripcion {
             throw new Exception("Código QR no válido");
         }
 
-        if ($inscripcion['estado'] !== 'confirmado') {
-            throw new Exception("La inscripción no está confirmada");
+        // Aceptar tanto "pendiente" como "confirmado" (o todos si está en debug)
+        if (ALLOW_ALL_STATES) {
+            // En modo debug, aceptar cualquier estado excepto "cancelado"
+            if ($inscripcion['estado'] === 'cancelado') {
+                throw new Exception("Inscripción cancelada");
+            }
+        } else {
+            // En producción, solo aceptar estados válidos
+            if (!in_array($inscripcion['estado'], ['pendiente', 'confirmado'])) {
+                throw new Exception("La inscripción no está en un estado válido para ingreso (estado: " . $inscripcion['estado'] . ")");
+            }
         }
 
-        // Verificar si el evento está activo
-        $fechaActual = date('Y-m-d');
-        if ($fechaActual < $inscripcion['fecha_inicio'] || $fechaActual > $inscripcion['fecha_fin']) {
-            throw new Exception("El evento no está disponible en esta fecha");
+        // Verificar si el evento está activo (saltar en modo debug)
+        if (!SKIP_DATE_VALIDATION) {
+            $fechaActual = date('Y-m-d');
+            
+            // Debug: agregar información de fechas al mensaje de error
+            if ($fechaActual < $inscripcion['fecha_inicio'] || $fechaActual > $inscripcion['fecha_fin']) {
+                $mensaje = "El evento no está disponible en esta fecha. ";
+                $mensaje .= "Fecha actual: {$fechaActual}, ";
+                $mensaje .= "Evento del {$inscripcion['fecha_inicio']} al {$inscripcion['fecha_fin']}";
+                throw new Exception($mensaje);
+            }
+        } else {
+            // En modo debug, mostrar que se saltó la validación
+            error_log("DEBUG: Saltando validación de fechas en marcarIngreso");
         }
 
-        // Registrar acceso
-        $dataAcceso = [
-            'inscripcion_id' => $inscripcion['id'],
-            'ip_address' => $ipAddress,
-            'user_agent' => $userAgent
-        ];
-
-        $this->db->insert('accesos', $dataAcceso);
+        // Iniciar transacción
+        $this->db->beginTransaction();
         
-        return true;
+        try {
+            // Registrar acceso
+            $dataAcceso = [
+                'inscripcion_id' => $inscripcion['id'],
+                'ip_address' => $ipAddress,
+                'user_agent' => $userAgent
+            ];
+
+            $accesoId = $this->db->insert('accesos', $dataAcceso);
+            
+            // Cambiar estado de la inscripción a "ingresado"
+            $filasAfectadas = $this->db->update('inscripciones', 
+                ['estado' => 'ingresado'], 
+                'id = ?', 
+                [$inscripcion['id']]
+            );
+            
+            $this->db->commit();
+            
+            return [
+                'exito' => true,
+                'mensaje' => 'Acceso confirmado exitosamente',
+                'acceso_id' => $accesoId,
+                'inscripcion_id' => $inscripcion['id']
+            ];
+            
+        } catch (Exception $e) {
+            $this->db->rollback();
+            return [
+                'exito' => false,
+                'mensaje' => 'Error al confirmar acceso: ' . $e->getMessage()
+            ];
+        }
     }
 
     public function confirmar(int $inscripcionId): bool {
@@ -123,13 +168,33 @@ class Inscripcion {
             return ['valido' => false, 'mensaje' => 'Código QR no válido'];
         }
 
-        if ($inscripcion['estado'] !== 'confirmado') {
-            return ['valido' => false, 'mensaje' => 'Inscripción no confirmada'];
+        // Aceptar tanto "pendiente" como "confirmado" (o todos si está en debug)
+        if (ALLOW_ALL_STATES) {
+            // En modo debug, aceptar cualquier estado excepto "cancelado"
+            if ($inscripcion['estado'] === 'cancelado') {
+                return ['valido' => false, 'mensaje' => 'Inscripción cancelada'];
+            }
+        } else {
+            // En producción, solo aceptar estados válidos
+            if (!in_array($inscripcion['estado'], ['pendiente', 'confirmado'])) {
+                return ['valido' => false, 'mensaje' => 'Inscripción no válida para ingreso (estado: ' . $inscripcion['estado'] . ')'];
+            }
         }
 
-        $fechaActual = date('Y-m-d');
-        if ($fechaActual < $inscripcion['fecha_inicio'] || $fechaActual > $inscripcion['fecha_fin']) {
-            return ['valido' => false, 'mensaje' => 'Evento no disponible en esta fecha'];
+        // Validación de fechas (saltar en modo debug)
+        if (!SKIP_DATE_VALIDATION) {
+            $fechaActual = date('Y-m-d');
+            
+            // Debug: agregar información de fechas al mensaje de error
+            if ($fechaActual < $inscripcion['fecha_inicio'] || $fechaActual > $inscripcion['fecha_fin']) {
+                $mensaje = "Evento no disponible en esta fecha. ";
+                $mensaje .= "Fecha actual: {$fechaActual}, ";
+                $mensaje .= "Evento del {$inscripcion['fecha_inicio']} al {$inscripcion['fecha_fin']}";
+                return ['valido' => false, 'mensaje' => $mensaje];
+            }
+        } else {
+            // En modo debug, mostrar que se saltó la validación
+            error_log("DEBUG: Saltando validación de fechas para desarrollo");
         }
 
         // Verificar si ya ingresó hoy
@@ -145,7 +210,9 @@ class Inscripcion {
             'valido' => true,
             'visitante' => $inscripcion,
             'ya_ingreso_hoy' => $accesos['ingresos_hoy'] > 0,
-            'total_ingresos_hoy' => $accesos['ingresos_hoy']
+            'total_ingresos_hoy' => $accesos['ingresos_hoy'],
+            'puede_ingresar' => true,
+            'estado_original' => $inscripcion['estado']
         ];
     }
 

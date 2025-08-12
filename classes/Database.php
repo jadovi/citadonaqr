@@ -55,12 +55,17 @@ class Database {
 
     public function update(string $table, array $data, string $where, array $whereParams = []): int {
         $setClause = [];
-        foreach (array_keys($data) as $column) {
-            $setClause[] = "{$column} = :{$column}";
+        $setParams = [];
+        $paramIndex = 1;
+        
+        // Usar parámetros posicionales para SET
+        foreach ($data as $column => $value) {
+            $setClause[] = "{$column} = ?";
+            $setParams[] = $value;
         }
         
         $sql = "UPDATE {$table} SET " . implode(', ', $setClause) . " WHERE {$where}";
-        $params = array_merge($data, $whereParams);
+        $params = array_merge($setParams, $whereParams);
         
         return $this->query($sql, $params)->rowCount();
     }
@@ -68,6 +73,18 @@ class Database {
     public function delete(string $table, string $where, array $whereParams = []): int {
         $sql = "DELETE FROM {$table} WHERE {$where}";
         return $this->query($sql, $whereParams)->rowCount();
+    }
+
+    public function beginTransaction(): bool {
+        return $this->connection->beginTransaction();
+    }
+
+    public function commit(): bool {
+        return $this->connection->commit();
+    }
+
+    public function rollback(): bool {
+        return $this->connection->rollback();
     }
 
     // Prevenir clonación

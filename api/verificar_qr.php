@@ -1,8 +1,18 @@
 <?php
-header('Content-Type: application/json');
+require_once __DIR__ . '/../config/config.php';
+
+// Headers CORS más robustos
+header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: *');
-header('Access-Control-Allow-Methods: POST');
-header('Access-Control-Allow-Headers: Content-Type');
+header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
+header('Access-Control-Allow-Headers: Content-Type, Accept, Authorization');
+header('Access-Control-Max-Age: 86400');
+
+// Manejar preflight requests
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    http_response_code(200);
+    exit;
+}
 
 require_once '../config/config.php';
 
@@ -63,13 +73,17 @@ function verificarQRJSON(array $datosQR): array {
             }
         }
         
-    // Verificar que el timestamp no sea muy antiguo (máximo 30 segundos de tolerancia)
-        $timestampActual = time();
+        // Obtener timestamp del QR
         $timestampQR = $datosQR['timestamp'];
+        $timestampActual = time();
         $diferencia = abs($timestampActual - $timestampQR);
         
-        if ($diferencia > 30) {
-            return ['valido' => false, 'mensaje' => 'Código QR expirado o con timestamp inválido'];
+        // Verificar que el timestamp no sea muy antiguo (máximo 30 segundos de tolerancia)
+        // Solo validar timestamp si no estamos en modo debug
+        if (!SKIP_TIME_VALIDATION) {
+            if ($diferencia > 30) {
+                return ['valido' => false, 'mensaje' => 'Código QR expirado o con timestamp inválido'];
+            }
         }
         
     // Verificar hash de seguridad

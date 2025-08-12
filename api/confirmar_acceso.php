@@ -1,8 +1,16 @@
 <?php
-header('Content-Type: application/json');
+// Headers CORS más robustos
+header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: *');
-header('Access-Control-Allow-Methods: POST');
-header('Access-Control-Allow-Headers: Content-Type');
+header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
+header('Access-Control-Allow-Headers: Content-Type, Accept, Authorization');
+header('Access-Control-Max-Age: 86400');
+
+// Manejar preflight requests
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    http_response_code(200);
+    exit;
+}
 
 require_once '../config/config.php';
 
@@ -41,18 +49,19 @@ try {
     $inscripcion = new Inscripcion();
     $resultado = $inscripcion->marcarIngreso($codigoQRReal, $ipAddress, $userAgent);
     
-    if ($resultado) {
+    if ($resultado['exito']) {
         // Obtener información del visitante para el mensaje
         $info = $inscripcion->obtenerPorCodigoQR($codigoQRReal);
         
         echo json_encode([
             'success' => true,
-            'message' => "Acceso confirmado para {$info['nombre']} {$info['apellido']} al evento {$info['evento_nombre']}"
+            'message' => "Acceso confirmado para {$info['nombre']} {$info['apellido']} al evento {$info['evento_nombre']}",
+            'acceso_id' => $resultado['acceso_id']
         ]);
     } else {
         echo json_encode([
             'success' => false,
-            'message' => 'No se pudo confirmar el acceso'
+            'message' => $resultado['mensaje']
         ]);
     }
 

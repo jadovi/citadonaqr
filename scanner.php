@@ -8,6 +8,9 @@ $pageTitle = 'Escáner QR - Acreditación';
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <title><?= $pageTitle ?></title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
@@ -27,6 +30,8 @@ $pageTitle = 'Escáner QR - Acreditación';
         
         #canvas {
             display: none;
+            /* Optimización para lecturas frecuentes */
+            image-rendering: -webkit-optimize-contrast;
         }
         
         .scanner-overlay {
@@ -110,7 +115,7 @@ $pageTitle = 'Escáner QR - Acreditación';
     <!-- Navigation -->
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
         <div class="container">
-            <a class="navbar-brand" href="<?= BASE_URL ?>">
+            <a class="navbar-brand" href="<?= BASE_URL ?>">>>
                 <i class="bi bi-qr-code"></i> EventAccess
             </a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
@@ -130,7 +135,7 @@ $pageTitle = 'Escáner QR - Acreditación';
                 </ul>
                 <ul class="navbar-nav">
                     <li class="nav-item">
-                        <a class="nav-link" href="<?= BASE_URL ?>/admin/">
+                        <a class="nav-link" href="<?= BASE_URL ?>/admin/">>>
                             <i class="bi bi-gear"></i> Administración
                         </a>
                     </li>
@@ -321,7 +326,7 @@ $pageTitle = 'Escáner QR - Acreditación';
             constructor() {
                 this.video = document.getElementById('video');
                 this.canvas = document.getElementById('canvas');
-                this.context = this.canvas.getContext('2d');
+                this.context = this.canvas.getContext('2d', { willReadFrequently: true });
                 this.scanning = false;
                 this.stream = null;
                 this.autoConfirmEl = document.getElementById('auto-confirm');
@@ -438,7 +443,11 @@ $pageTitle = 'Escáner QR - Acreditación';
                 this.showStatus('Código QR detectado. Verificando...', 'warning');
                 
                 try {
-                    const response = await fetch('<?= BASE_URL ?>/api/verificar_qr.php', {
+                    const apiUrl = '<?= BASE_URL ?>/api/verificar_qr.php';
+                    console.log('Calling API URL:', apiUrl);
+                    console.log('QR Data:', qrData);
+                    
+                    const response = await fetch(apiUrl, {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
@@ -446,7 +455,37 @@ $pageTitle = 'Escáner QR - Acreditación';
                         body: JSON.stringify({ codigo_qr: qrData })
                     });
 
-                    const result = await response.json();
+                    console.log('Response status:', response.status);
+                    console.log('Response headers:', [...response.headers.entries()]);
+
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+
+                    const responseText = await response.text();
+                    console.log('Response text:', responseText);
+                    
+                    // Limpiar warnings de PHP si existen
+                    let cleanResponseText = responseText;
+                    if (responseText.includes('<br />')) {
+                        console.warn('Response contains PHP warnings, cleaning...');
+                        // Extraer solo la parte JSON
+                        const jsonStart = responseText.indexOf('{');
+                        if (jsonStart !== -1) {
+                            cleanResponseText = responseText.substring(jsonStart);
+                        }
+                    }
+                    
+                    // Intentar parsear como JSON
+                    let result;
+                    try {
+                        result = JSON.parse(cleanResponseText);
+                    } catch (parseError) {
+                        console.error('Error parsing JSON:', parseError);
+                        console.error('Original response text:', responseText);
+                        console.error('Cleaned response text:', cleanResponseText);
+                        throw new Error('El servidor devolvió una respuesta inválida');
+                    }
                     
                     if (result.success) {
                         if (result.data.valido) {
@@ -540,7 +579,15 @@ $pageTitle = 'Escáner QR - Acreditación';
                     document.getElementById('confirm-access').style.display = 'none';
                 } else {
                     document.getElementById('visitor-card').className = 'card mb-4 border-success';
-                    this.showStatus('Visitante válido. Puede confirmar el acceso.', 'success');
+                    
+                    // Mostrar mensaje según el estado
+                    const estadoOriginal = data.estado_original || visitante.estado;
+                    if (estadoOriginal === 'pendiente') {
+                        this.showStatus('Visitante en estado PENDIENTE. Se confirmará automáticamente al ingresar.', 'info');
+                    } else {
+                        this.showStatus('Visitante válido. Puede confirmar el acceso.', 'success');
+                    }
+                    
                     document.getElementById('confirm-access').style.display = 'inline-block';
                 }
 
